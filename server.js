@@ -1,33 +1,34 @@
 const express = require("express");
+const axios = require("axios");
 const cors = require("cors");
-const bodyParser = require("body-parser");
-
-const { enviarDados } = require("./enviarDados");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Middlewares
 app.use(cors());
-app.use(bodyParser.json({ limit: "10mb" })); // aumentar limite para base64
+app.use(express.json());
 
-// Endpoint para receber dados do frontend
-app.post("/send-data", async (req, res) => {
-  const { latitude, longitude, maps, photo } = req.body;
+const TELEGRAM_BOT_TOKEN = "7674928346:AAEd6FNCSB_ozfmqs7islmmEaH6x8bWivVQ";
+const TELEGRAM_CHAT_ID = "1276935257";
 
-  if (!latitude || !longitude || !maps) {
-    return res.status(400).json({ success: false, message: "Dados insuficientes" });
-  }
+app.post("/send-message", async (req, res) => {
+  const { text } = req.body;
+  if (!text) return res.status(400).json({ success: false, message: "Texto é obrigatório" });
 
   try {
-    await enviarDados(latitude, longitude, maps, photo, res);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Erro interno no servidor" });
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+    await axios.get(url, {
+      params: {
+        chat_id: TELEGRAM_CHAT_ID,
+        text,
+      },
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error.response?.data || error.message);
+    res.status(500).json({ success: false, message: "Erro ao enviar mensagem" });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+app.listen(3000, () => {
+  console.log("Servidor rodando na porta 3000");
 });
 
